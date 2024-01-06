@@ -11,19 +11,26 @@
 int windowWidth = 1024;
 int windowHeight = 512;
 
-float pX, pY, pdX, pdY, pa;
+float pX, pY, pdX, pdY, pa, speed, rotSpeed;
+float currentFrame, lastFrame, deltaTime;
 
 int mapX = 8, mapY = 8, mapS = 64;
 int map[] = {
     1, 1, 1, 1, 1, 1, 1, 1,
-    1, 0, 1, 0, 0, 0, 0, 1,
-    1, 0, 1, 0, 0, 0, 0, 1,
-    1, 0, 1, 0, 0, 0, 0, 1,
-    1, 0, 0, 0, 0, 0, 0, 1,
     1, 0, 0, 0, 1, 0, 0, 1,
+    1, 0, 1, 0, 1, 0, 0, 1,
+    1, 0, 1, 0, 0, 0, 0, 1,
     1, 0, 0, 0, 0, 0, 0, 1,
+    1, 0, 1, 0, 1, 0, 0, 1,
+    1, 0, 1, 0, 0, 0, 0, 1,
     1, 1, 1, 1, 1, 1, 1, 1
 };
+
+typedef struct {
+    int w, a, s, d;
+} ButtonKeys;
+
+ButtonKeys Keys;
 
 void drawMap2D() {
     int x, y, xo, yo;
@@ -59,6 +66,56 @@ void drawPlayer() {
     glVertex2i(pX, pY);
     glVertex2i(pX + pdX * 5, pY + pdY * 5);
     glEnd();
+}
+
+void movePlayer() {
+    int xOffset = 0;
+    int yOffset = 0;
+    
+    if (pdX < 0)
+        xOffset = -20;    
+    else
+        xOffset = 20;
+    if (pdY < 0)
+        yOffset = -20;
+    else
+        yOffset = 20;
+
+    int ipx = pX / 64, ipx_add_xo = (pX + xOffset) / 64, ipx_sub_xo = (pX - xOffset) / 64;
+    int ipy = pY / 64, ipy_add_yo = (pY + yOffset) / 64, ipy_sub_yo = (pY - yOffset) / 64;
+
+    if (Keys.w) {
+        if (map[ipy * mapX + ipx_add_xo] == 0) {
+            pX += pdX * deltaTime * speed;
+        }
+        if (map[ipy_add_yo * mapX + ipx] == 0) {
+            pY += pdY * deltaTime * speed;
+        }
+    }
+    if (Keys.s) {
+        if (map[ipy * mapX + ipx_sub_xo] == 0) {
+            pX -= pdX * deltaTime * speed;
+        }
+        if (map[ipy_sub_yo * mapX + ipx] == 0) {
+            pY -= pdY * deltaTime * speed;
+        }
+    }
+    if (Keys.a) {
+        pa -= 0.1f * deltaTime * speed;
+        if (pa < 0) {
+            pa += 2 * PI;
+        }
+        pdX = cos(pa) * 5;
+        pdY = sin(pa) * 5;
+    }
+    if (Keys.d) {
+        pa += 0.1f * deltaTime * speed;
+        if (pa > 2 * PI) {
+            pa -= 2 * PI;
+        }
+        pdX = cos(pa) * 5;
+        pdY = sin(pa) * 5;
+    }
 }
 
 float dist(float ax, float ay, float bx, float by, float ang) {
@@ -212,33 +269,26 @@ void display() {
     drawMap2D();
     drawRays2D();
     drawPlayer();
+    movePlayer();
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
 
-    if (key == GLFW_KEY_W && action == GLFW_REPEAT) {
-        pX += pdX;
-        pY += pdY;
+    if (key == GLFW_KEY_W) {
+        if (action == GLFW_PRESS) Keys.w = 1;
+        if (action == GLFW_RELEASE) Keys.w = 0;
     }
-    if (key == GLFW_KEY_S && action == GLFW_REPEAT) {
-        pX -= pdX;
-        pY -= pdY;
+    if (key == GLFW_KEY_S) {
+        if (action == GLFW_PRESS) Keys.s = 1;
+        if (action == GLFW_RELEASE) Keys.s = 0;
     }
-    if (key == GLFW_KEY_A && action == GLFW_REPEAT) {
-        pa -= 0.1f;
-        if (pa < 0) {
-            pa += 2 * PI;
-        }
-        pdX = cos(pa) * 5;
-        pdY = sin(pa) * 5;
+    if (key == GLFW_KEY_A) {
+        if (action == GLFW_PRESS) Keys.a = 1;
+        if (action == GLFW_RELEASE) Keys.a = 0;
     }
-    if (key == GLFW_KEY_D && action == GLFW_REPEAT) {
-        pa += 0.1f;
-        if (pa > 2 * PI) {
-            pa -= 2 * PI;
-        }
-        pdX = cos(pa) * 5;
-        pdY = sin(pa) * 5;
+    if (key == GLFW_KEY_D) {
+        if (action == GLFW_PRESS) Keys.d = 1;
+        if (action == GLFW_RELEASE) Keys.d = 0;
     }
 }
 
@@ -249,6 +299,8 @@ void init() {
     pY = 240;
     pdX = cos(pa) * 5;
     pdY = sin(pa) * 5;
+    speed = 10;
+    rotSpeed = 10;
 }
 
 int main(void)
@@ -276,6 +328,10 @@ int main(void)
     while (!glfwWindowShouldClose(window))    {
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        currentFrame = glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
 
         display();
 
