@@ -1,0 +1,1 @@
+int checkBoard_Texture[];

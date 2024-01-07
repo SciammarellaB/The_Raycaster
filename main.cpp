@@ -1,7 +1,10 @@
 #include <GLFW/glfw3.h>
+#include <iostream>
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+
+#include "mapTexture.hpp"
 
 #define PI 3.1415926535
 #define P2 PI/2
@@ -15,11 +18,11 @@ float pX, pY, pdX, pdY, pa, speed, rotSpeed;
 float currentFrame, lastFrame, deltaTime;
 
 int mapX = 8, mapY = 8, mapS = 64;
-int map[] = {
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 0, 0, 0, 1, 0, 0, 1,
+int walls[] = {
+    1, 1, 1, 1, 1, 1, 2, 1,
     1, 0, 1, 0, 1, 0, 0, 1,
-    1, 0, 1, 0, 0, 0, 0, 1,
+    1, 0, 1, 0, 1, 0, 0, 1,
+    1, 4, 1, 0, 0, 0, 0, 1,
     1, 0, 0, 0, 0, 0, 0, 1,
     1, 0, 1, 0, 1, 0, 0, 1,
     1, 0, 1, 0, 0, 0, 0, 1,
@@ -37,7 +40,7 @@ void drawMap2D() {
     for (y = 0; y < mapY; y++) {
         for (x = 0; x < mapX; x++) {
             //DESENHAR O TIPO 1 DO MAPA
-            if (map[y * mapX + x] == 1)
+            if (walls[y * mapX + x] > 0)
                 glColor3f(1, 1, 1);
             //ESPACO PRETO
             else
@@ -85,18 +88,18 @@ void movePlayer() {
     int ipy = pY / 64, ipy_add_yo = (pY + yOffset) / 64, ipy_sub_yo = (pY - yOffset) / 64;
 
     if (Keys.w) {
-        if (map[ipy * mapX + ipx_add_xo] == 0) {
+        if (walls[ipy * mapX + ipx_add_xo] == 0) {
             pX += pdX * deltaTime * speed;
         }
-        if (map[ipy_add_yo * mapX + ipx] == 0) {
+        if (walls[ipy_add_yo * mapX + ipx] == 0) {
             pY += pdY * deltaTime * speed;
         }
     }
     if (Keys.s) {
-        if (map[ipy * mapX + ipx_sub_xo] == 0) {
+        if (walls[ipy * mapX + ipx_sub_xo] == 0) {
             pX -= pdX * deltaTime * speed;
         }
-        if (map[ipy_sub_yo * mapX + ipx] == 0) {
+        if (walls[ipy_sub_yo * mapX + ipx] == 0) {
             pY -= pdY * deltaTime * speed;
         }
     }
@@ -134,6 +137,8 @@ void drawRays2D() {
         ra -= 2 * PI;
     }
     for (r = 0; r < rMax; r++) {
+        int vmt = 0, hmt = 0;
+
         //HORIZONTAL
         dof = 0;
         float disH = 100000, hx = pX, hy = pY;
@@ -164,7 +169,8 @@ void drawRays2D() {
             mY = (int) (rY) >> 6;
             mP = mY * mapX + mX;
             // ACHOU A PAREDE
-            if (mP > 0 && mP < mapX * mapY && map[mP] == 1) {
+            if (mP > 0 && mP < mapX * mapY && walls[mP] > 0) {
+                hmt = walls[mP] - 1;
                 hx = rX;
                 hy = rY;
                 disH = dist(pX, pY, hx, hy, ra);
@@ -208,7 +214,8 @@ void drawRays2D() {
             mY = (int)(rY) >> 6;
             mP = mY * mapX + mX;
             // ACHOU A PAREDE
-            if (mP > 0 && mP < mapX * mapY && map[mP] == 1) {
+            if (mP > 0 && mP < mapX * mapY && walls[mP] > 0) {
+                vmt = walls[mP] - 1;
                 vx = rX;
                 vy = rY;
                 disV = dist(pX, pY, vx, vy, ra);
@@ -222,21 +229,28 @@ void drawRays2D() {
             }
         }
 
+        //SHADE DOS RAY
+        float shade = 1;
+        glColor3f(0, 0.8, 0);
+
         //MOSTRAR QUEM BATEU PRIMEIRO
         if (disV < disH) {
+            hmt = vmt;
+            shade = 0.5;
             rX = vx;
             rY = vy;
             distF = disV;
             glColor3f(0.9, 0, 0);
         }
         if (disV > disH) {
+            vmt = hmt;
             rX = hx;
             rY = hy;
             distF = disH;
             glColor3f(0.7, 0, 0);
         }
 
-        glLineWidth(3); glBegin(GL_LINES); glVertex2f(pX, pY); glVertex2f(rX, rY); glEnd();
+        glLineWidth(2); glBegin(GL_LINES); glVertex2f(pX, pY); glVertex2f(rX, rY); glEnd();
 
         //FAZER O CAST 3D
         float ca = pa - ra;
@@ -249,11 +263,38 @@ void drawRays2D() {
         distF = distF * cos(ca);
 
         float lineH = (mapS * 320) / distF;
+        float ty_step = 32 / (float)lineH;
+        float tyOffset = 0;
+        
         if (lineH > 320) {
+            tyOffset = (lineH - 320) / 2;
             lineH = 320;
         }
-        float lineOffset = 160 - lineH / 2;
-        glLineWidth(8); glBegin(GL_LINES); glVertex2i(r * 8 + 530, lineOffset); glVertex2i(r * 8 + 530, lineH + lineOffset); glEnd();
+        
+        float lineOffset = 160 - lineH / 2;        
+        int y;
+        float ty = tyOffset * ty_step + hmt * 32;
+        float tx;
+
+        if (shade == 1) {
+            tx = (int)(rX / 2) % 32;
+            if (ra > 180 * DR) {
+                tx = 31 - tx;
+            }
+        }
+        else {
+            tx = (int)(rY / 2) % 32;
+            if (ra > 90 * DR && ra < 270 * DR) {
+                tx = 31 - tx;
+            }
+        }
+
+        for (y = 0; y < lineH; y++) {
+            float c = map_Texture[(int)(ty) * 32 + (int) (tx)] * shade;
+            glColor3f(c, c, c);
+            glPointSize(8); glBegin(GL_POINTS); glVertex2i(r * 8 + 530, y + lineOffset); glEnd();
+            ty += ty_step;
+        }
 
         ra += DR;
         if (ra < 0) {
@@ -299,8 +340,8 @@ void init() {
     pY = 240;
     pdX = cos(pa) * 5;
     pdY = sin(pa) * 5;
-    speed = 10;
-    rotSpeed = 10;
+    speed = 20;
+    rotSpeed = 25;
 }
 
 int main(void)
