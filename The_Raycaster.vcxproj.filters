@@ -26,5 +26,8 @@
     <ClInclude Include="mapaTexturas.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="mapa.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
