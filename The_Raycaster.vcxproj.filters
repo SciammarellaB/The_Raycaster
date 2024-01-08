@@ -18,12 +18,12 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="mapTexture.cpp">
+    <ClCompile Include="mapaTexturas.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="mapTexture.hpp">
+    <ClInclude Include="mapaTexturas.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

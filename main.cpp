@@ -4,55 +4,104 @@
 #include <stdio.h>
 #include <math.h>
 
-#include "mapTexture.hpp"
+#include "mapaTexturas.hpp"
 
 #define PI 3.1415926535
 #define P2 PI/2
 #define P3 3*PI/2
-#define DR 0.0174533
+#define DegreeRad 0.0174533
 
-int windowWidth = 1024;
-int windowHeight = 512;
+int screenWidth = 640, screenHeight = 480, screenHeightFactor = screenHeight;
+double lastFrame, currentFrame, deltaTime = 0;
 
-float pX, pY, pdX, pdY, pa, speed, rotSpeed;
-float currentFrame, lastFrame, deltaTime;
+//BOTOES POSSIVEIS DO JOGO
+typedef struct buttonKeys {
+    int forward, backward, left, right, action;
+};
+buttonKeys input;
 
-int mapX = 8, mapY = 8, mapS = 64;
+//MAPA
+int mapWidth = 20, mapHeight = 20, tileSize = 64;
 int walls[] = {
-    1, 1, 1, 1, 1, 1, 2, 1,
-    1, 0, 1, 0, 1, 0, 0, 1,
-    1, 0, 1, 0, 1, 0, 0, 1,
-    1, 4, 1, 0, 0, 0, 0, 1,
-    1, 0, 0, 0, 0, 0, 0, 1,
-    1, 0, 1, 0, 1, 0, 0, 1,
-    1, 0, 1, 0, 0, 0, 0, 1,
-    1, 1, 1, 1, 1, 1, 1, 1
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    1,0,0,0,0,4,0,1,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,1,1,1,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,1,1,1,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,2,2,2,2,2,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
 };
 
-typedef struct {
-    int w, a, s, d;
-} ButtonKeys;
+//JOGADOR
+float playerX, playerY, playerAngle, playerDX, playerDY, playerSpeed, playerRotateSpeed, playerDetectionDistance, playerColliderRadius;
 
-ButtonKeys Keys;
+void initialize() {
+    glClearColor(0, 0, 0, 0);
+    playerX = 96;
+    playerY = 96;
+    playerAngle = 0;
+    playerSpeed = 135;
+    playerRotateSpeed = 5;
+    playerDetectionDistance = 30;
+    playerColliderRadius = 20;
+}
+
+float dist(float ax, float ay, float bx, float by, float ang) {
+    return sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+}
+
+void drawBackground() {
+    //CEU
+    glColor3f(0.34, 0.54, 0.70);
+    glBegin(GL_QUADS);
+    glVertex2i(0, 0);
+    glVertex2i(screenWidth, 0);
+    glVertex2i(screenWidth, screenHeight / 2);
+    glVertex2i(0, screenHeight / 2);
+    glEnd();
+
+    //CHAO
+    glColor3f(0.70, 0.70, 0.70);
+    glBegin(GL_QUADS);
+    glVertex2i(0, screenHeight / 2);
+    glVertex2i(screenWidth, screenHeight / 2);
+    glVertex2i(screenWidth, screenHeight);
+    glVertex2i(0, screenHeight);
+    glEnd();
+}
 
 void drawMap2D() {
-    int x, y, xo, yo;
-    for (y = 0; y < mapY; y++) {
-        for (x = 0; x < mapX; x++) {
-            //DESENHAR O TIPO 1 DO MAPA
-            if (walls[y * mapX + x] > 0)
+    int x, y, xOffset, yOffset;
+    for (x = 0; x < mapWidth; x++) {
+        for (y = 0; y < mapWidth; y++) {
+            //DESENHAR OS VALORES ACIMA DE 0
+            if (walls[y * mapWidth + x] > 0)
                 glColor3f(1, 1, 1);
-            //ESPACO PRETO
+            //QUANDO 0 FICAR PRETO
             else
                 glColor3f(0, 0, 0);
 
+            //DESENHAR
             glBegin(GL_QUADS);
-            xo = x * mapS;
-            yo = y * mapS;
-            glVertex2i(xo + 1       , yo + 1);
-            glVertex2i(xo + 1       , yo + mapS - 1);
-            glVertex2i(xo + mapS - 1, yo + mapS - 1);
-            glVertex2i(xo + mapS - 1, yo + 1);
+            xOffset = x * tileSize;
+            yOffset = y * tileSize;
+            glVertex2i(xOffset, yOffset);
+            glVertex2i(xOffset, yOffset + tileSize);
+            glVertex2i(xOffset + tileSize, yOffset + tileSize);
+            glVertex2i(xOffset + tileSize, yOffset);
             glEnd();
         }
     }
@@ -62,286 +111,316 @@ void drawPlayer() {
     glColor3f(1, 1, 0);
     glPointSize(8);
     glBegin(GL_POINTS);
-    glVertex2i(pX, pY);
+    glVertex2i(playerX, playerY);
     glEnd();
 
     glBegin(GL_LINES);
-    glVertex2i(pX, pY);
-    glVertex2i(pX + pdX * 5, pY + pdY * 5);
+    glVertex2i(playerX, playerY);
+    glVertex2i(playerX + playerDX * playerDetectionDistance, playerY + playerDY * playerDetectionDistance);
     glEnd();
 }
 
-void movePlayer() {
-    int xOffset = 0;
-    int yOffset = 0;
-    
-    if (pdX < 0)
-        xOffset = -20;    
-    else
-        xOffset = 20;
-    if (pdY < 0)
-        yOffset = -20;
-    else
-        yOffset = 20;
+void drawRaycast2D() {
+    int mapaX, mapaY, mapaPonto;
+    int ray, rayQtd = 60, depthOfField, depthOfFieldMax = 100;
+    float rayX, rayY, rayAngle, rayXO, rayYO, rayDist;
 
-    int ipx = pX / 64, ipx_add_xo = (pX + xOffset) / 64, ipx_sub_xo = (pX - xOffset) / 64;
-    int ipy = pY / 64, ipy_add_yo = (pY + yOffset) / 64, ipy_sub_yo = (pY - yOffset) / 64;
+    rayAngle = playerAngle - DegreeRad * 30;    
+    if (rayAngle < 0) {
+        rayAngle += 2 * PI;
+    }
+    if (rayAngle > 2 * PI) {
+        rayAngle -= 2 * PI;
+    }
 
-    if (Keys.w) {
-        if (walls[ipy * mapX + ipx_add_xo] == 0) {
-            pX += pdX * deltaTime * speed;
-        }
-        if (walls[ipy_add_yo * mapX + ipx] == 0) {
-            pY += pdY * deltaTime * speed;
-        }
-    }
-    if (Keys.s) {
-        if (walls[ipy * mapX + ipx_sub_xo] == 0) {
-            pX -= pdX * deltaTime * speed;
-        }
-        if (walls[ipy_sub_yo * mapX + ipx] == 0) {
-            pY -= pdY * deltaTime * speed;
-        }
-    }
-    if (Keys.a) {
-        pa -= 0.1f * deltaTime * speed;
-        if (pa < 0) {
-            pa += 2 * PI;
-        }
-        pdX = cos(pa) * 5;
-        pdY = sin(pa) * 5;
-    }
-    if (Keys.d) {
-        pa += 0.1f * deltaTime * speed;
-        if (pa > 2 * PI) {
-            pa -= 2 * PI;
-        }
-        pdX = cos(pa) * 5;
-        pdY = sin(pa) * 5;
-    }
-}
-
-float dist(float ax, float ay, float bx, float by, float ang) {
-    return sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
-}
-
-void drawRays2D() {
-    int r, rMax, mX, mY, mP, dof;
-    float rX, rY, ra, xo, yo, distF;
-    rMax = 60;
-    ra = pa - DR * 30;
-    if (ra < 0) {
-        ra += 2 * PI;
-    }
-    if (ra > 2 * PI) {
-        ra -= 2 * PI;
-    }
-    for (r = 0; r < rMax; r++) {
-        int vmt = 0, hmt = 0;
+    for (ray = 0; ray < rayQtd; ray++) {
+        double verticalMapaTextura = 0, horizontalMapaTextura = 0;
 
         //HORIZONTAL
-        dof = 0;
-        float disH = 100000, hx = pX, hy = pY;
-        float aTan = -1 / tan(ra);
-        // OLHANDO PARA CIMA
-        if (ra > PI) {
-            rY = (((int)pY >> 6) << 6) - 0.0001;
-            rX = (pY - rY) * aTan + pX;
-            yo = -64;
-            xo = -yo * aTan;
+        depthOfField = 0;
+        float horizontalDist = 100000000, horizontalX = playerX, horizontalY = playerY;
+        float angleTan = -1 / tan(rayAngle);
+        //OLHANDO PARA CIMA (> 180)
+        if (rayAngle > PI) {
+            rayY = (((int)playerY / tileSize) * tileSize ) - 0.0001;
+            rayX = (playerY - rayY) * angleTan + playerX;
+            rayYO = -tileSize;
+            rayXO = -rayYO * angleTan;
         }
-        // OLHANDO PARA BAIXO
-        if (ra < PI) {
-            rY = (((int)pY >> 6) << 6) + 64;
-            rX = (pY - rY) * aTan + pX;
-            yo = 64;
-            xo = -yo * aTan;
+        //OLHANDO PARA BAIXO (< 180)
+        if (rayAngle < PI) {
+            rayY = (((int)playerY / tileSize) * tileSize) + tileSize;
+            rayX = (playerY - rayY) * angleTan + playerX;
+            rayYO = tileSize;
+            rayXO = -rayYO * angleTan;
         }
         //OLHANDO PARA OS LADOS
-        if (ra == 0 || ra == PI) {
-            rX = pX;
-            rY = pY;
-            dof = 8;
+        if (rayAngle == 0 || rayAngle == PI) {
+            rayX = playerX;
+            rayY = playerY;
+            depthOfField = depthOfFieldMax;
         }
-        while (dof < 8)
+        while (depthOfField < depthOfFieldMax)
         {
-            mX = (int)(rX) >> 6;
-            mY = (int) (rY) >> 6;
-            mP = mY * mapX + mX;
+            mapaX = (int)(rayX) / tileSize;
+            mapaY = (int)(rayY) / tileSize;
+            mapaPonto = mapaY * mapWidth + mapaX;
             // ACHOU A PAREDE
-            if (mP > 0 && mP < mapX * mapY && walls[mP] > 0) {
-                hmt = walls[mP] - 1;
-                hx = rX;
-                hy = rY;
-                disH = dist(pX, pY, hx, hy, ra);
-                dof = 8;
+            if (mapaPonto > 0 && mapaPonto < mapWidth * mapHeight && walls[mapaPonto] > 0) {
+                horizontalMapaTextura = walls[mapaPonto] - 1;
+                horizontalX = rayX;
+                horizontalY = rayY;
+                horizontalDist = dist(playerX, playerY, horizontalX, horizontalY, rayAngle);
+                depthOfField = depthOfFieldMax;
             }
             //PROXIMA LINHA
             else {
-                rX += xo;
-                rY += yo;
-                dof += 1;
-            }
-        }
-        
-        //VERTICAL
-        dof = 0;
-        float disV = 100000, vx = pX, vy = pY;
-        float nTan = -tan(ra);
-        // OLHANDO PARA ESQUERDA
-        if (ra > P2 && ra < P3) {
-            rX = (((int)pX >> 6) << 6) - 0.0001;
-            rY = (pX - rX) * nTan + pY;
-            xo = -64;
-            yo = -xo * nTan;
-        }
-        // OLHANDO PARA DIREITA
-        if (ra < P2 || ra > P3) {
-            rX = (((int)pX >> 6) << 6) + 64;
-            rY = (pX - rX) * nTan + pY;
-            xo = 64;
-            yo = -xo * nTan;
-        }
-        //OLHANDO PARA CIMA OU BAIXO
-        if (ra == 0 || ra == PI) {
-            rX = pX;
-            rY = pY;
-            dof = 8;
-        }
-        while (dof < 8)
-        {
-            mX = (int)(rX) >> 6;
-            mY = (int)(rY) >> 6;
-            mP = mY * mapX + mX;
-            // ACHOU A PAREDE
-            if (mP > 0 && mP < mapX * mapY && walls[mP] > 0) {
-                vmt = walls[mP] - 1;
-                vx = rX;
-                vy = rY;
-                disV = dist(pX, pY, vx, vy, ra);
-                dof = 8;
-            }
-            //PROXIMA LINHA
-            else {
-                rX += xo;
-                rY += yo;
-                dof += 1;
+                rayX += rayXO;
+                rayY += rayYO;
+                depthOfField += 1;
             }
         }
 
-        //SHADE DOS RAY
+        //VERTICAL
+        depthOfField = 0;
+        float verticalDist = 100000000, verticalX = playerX, verticalY = playerY;
+        float negTan = -tan(rayAngle);
+        //OLHANDO PARA ESQUERDA        
+        if (rayAngle > P2 && rayAngle < P3) {
+            rayX = (((int)playerX / tileSize) * tileSize) - 0.0001;
+            rayY = (playerX - rayX) * negTan + playerY;
+            rayXO = -tileSize;
+            rayYO = -rayXO * negTan;
+        }
+        //OLHANDO PARA DIREITA
+        if (rayAngle < P2 || rayAngle > P3) {
+            rayX = (((int)playerX / tileSize) * tileSize) + tileSize;
+            rayY = (playerX - rayX) * negTan + playerY;
+            rayXO = tileSize;
+            rayYO = -rayXO * negTan;
+        }
+        //OLHANDO PARA CIMA OU BAIXO
+        if (rayAngle == 0 || rayAngle == PI) {
+            rayX = playerX;
+            rayY = playerY;
+            depthOfField = depthOfFieldMax;
+        }
+        while (depthOfField < depthOfFieldMax)
+        {
+            mapaX = (int)(rayX) / tileSize;
+            mapaY = (int)(rayY) / tileSize;
+            mapaPonto = mapaY * mapWidth + mapaX;
+            // ACHOU A PAREDE
+            if (mapaPonto > 0 && mapaPonto < mapWidth * mapHeight && walls[mapaPonto] > 0) {
+                verticalMapaTextura = walls[mapaPonto] - 1;
+                verticalX = rayX;
+                verticalY = rayY;
+                verticalDist = dist(playerX, playerY, verticalX, verticalY, rayAngle);
+                depthOfField = depthOfFieldMax;
+            }
+            //PROXIMA LINHA
+            else {
+                rayX += rayXO;
+                rayY += rayYO;
+                depthOfField += 1;
+            }
+        }
+
+        //SHADE DE SOMBRA
         float shade = 1;
         glColor3f(0, 0.8, 0);
 
         //MOSTRAR QUEM BATEU PRIMEIRO
-        if (disV < disH) {
-            hmt = vmt;
+        if (verticalDist < horizontalDist) {
+            horizontalMapaTextura = verticalMapaTextura;
             shade = 0.5;
-            rX = vx;
-            rY = vy;
-            distF = disV;
-            glColor3f(0.9, 0, 0);
-        }
-        if (disV > disH) {
-            vmt = hmt;
-            rX = hx;
-            rY = hy;
-            distF = disH;
+            rayX = verticalX;
+            rayY = verticalY;
+            rayDist = verticalDist;
             glColor3f(0.7, 0, 0);
         }
-
-        glLineWidth(2); glBegin(GL_LINES); glVertex2f(pX, pY); glVertex2f(rX, rY); glEnd();
-
-        //FAZER O CAST 3D
-        float ca = pa - ra;
-        if (ca < 0) {
-            ca += 2 * PI;
+        if (verticalDist > horizontalDist) {
+            verticalMapaTextura = horizontalMapaTextura;
+            rayX = horizontalX;
+            rayY = horizontalY;
+            rayDist = horizontalDist;
+            glColor3f(0.9, 0, 0);
         }
-        if (ca > 2 * PI) {
-            ca -= 2 * PI;
-        }
-        distF = distF * cos(ca);
 
-        float lineH = (mapS * 320) / distF;
-        float ty_step = 32 / (float)lineH;
-        float tyOffset = 0;
+        //glLineWidth(2); glBegin(GL_LINES); glVertex2f(playerX, playerY); glVertex2f(rayX, rayY); glEnd();
+
+        //RAYCAST 3D
+        float castAngle = playerAngle - rayAngle;
+        if (castAngle < 0) {
+            castAngle += 2 * PI;
+        }
+        if (castAngle > 2 * PI) {
+            castAngle -= 2 * PI;
+        }
+        rayDist = rayDist * cos(castAngle);
+
+        float lineHeight = (tileSize * screenHeightFactor) / rayDist;
+        float texturaY_step = mapaTexturaOffset / (float)lineHeight;
+        float texturaYOffset = 0;
         
-        if (lineH > 320) {
-            tyOffset = (lineH - 320) / 2;
-            lineH = 320;
+        if (lineHeight > screenHeightFactor) {
+            texturaYOffset = (lineHeight - screenHeightFactor) / 2;
+            lineHeight = screenHeightFactor;
         }
         
-        float lineOffset = 160 - lineH / 2;        
         int y;
-        float ty = tyOffset * ty_step + hmt * 32;
-        float tx;
+        float lineOffset = screenHeight / 2 - lineHeight / 2;
+        float texturaY = texturaYOffset * texturaY_step + horizontalMapaTextura * mapaTexturaOffset;
+        float texturaX;
 
         if (shade == 1) {
-            tx = (int)(rX / 2) % 32;
-            if (ra > 180 * DR) {
-                tx = 31 - tx;
+            texturaX = (int)(rayX / 2) % mapaTexturaOffset;
+            if (rayAngle > 180) {
+                texturaX = 31 - texturaX;
             }
         }
         else {
-            tx = (int)(rY / 2) % 32;
-            if (ra > 90 * DR && ra < 270 * DR) {
-                tx = 31 - tx;
+            texturaX = (int)(rayY / 2) % mapaTexturaOffset;
+            if (rayAngle > 90 && rayAngle < 270) {
+                texturaX = 31 - texturaX;
             }
         }
 
-        for (y = 0; y < lineH; y++) {
-            float c = map_Texture[(int)(ty) * 32 + (int) (tx)] * shade;
+        for (y = 0; y < lineHeight; y++) {
+            float c = mapaTextura[(int)(texturaY) * mapaTexturaOffset + (int)texturaX] * shade;
             glColor3f(c, c, c);
-            glPointSize(8); glBegin(GL_POINTS); glVertex2i(r * 8 + 530, y + lineOffset); glEnd();
-            ty += ty_step;
+            //BRICK
+            if (horizontalMapaTextura == 0) {
+                glColor3f(c * 0.75, c * 0.42, c * 0.27);
+            }
+            glPointSize(12); glBegin(GL_POINTS); glVertex2i(ray * 12, y + lineOffset); glEnd();
+            texturaY += texturaY_step;
+        }        
+
+        //ATUALIZAR ANGULO HORIZONTAL
+        rayAngle += DegreeRad;
+        if (rayAngle < 0) {
+            rayAngle += 2 * PI;
+        }
+        if (rayAngle > 2 * PI) {
+            rayAngle -= 2 * PI;
+        }
+    }
+}
+
+void movePlayer() {
+    //OFFSET PARA NAO ATRAVESSAR AS PAREDES
+    int xOffset = 0, yOffset = 0;
+
+    playerDX = cos(playerAngle);
+    playerDY = sin(playerAngle);
+
+    if (playerDX < 0)
+        xOffset = -playerColliderRadius;
+    else
+        xOffset = playerColliderRadius;
+
+    if (playerDY < 0)
+        yOffset = -playerColliderRadius;
+    else
+        yOffset = playerColliderRadius;
+    
+    int indexPlayerX = playerX / tileSize, indexPlayerX_ADD_XO = (playerX + xOffset) / tileSize, indexPlayerX_SUB_XO = (playerX - xOffset) / tileSize;
+    int indexPlayerY = playerY / tileSize, indexPlayerY_ADD_YO = (playerY + yOffset) / tileSize, indexPlayerY_SUB_YO = (playerY - yOffset) / tileSize;
+    
+    //VERIFICAR SE ESTÁ TOCANDO OU IRA TOCAR EM UM PEDACO DO MAPA QUE NAO SEJA VAZIO
+
+    if (input.forward) {
+        if (walls[indexPlayerY * mapWidth + indexPlayerX_ADD_XO] == 0) {
+            playerX += playerDX * deltaTime * playerSpeed;
+        }
+        if (walls[indexPlayerY_ADD_YO * mapWidth + indexPlayerX] == 0) {
+            playerY += playerDY * deltaTime * playerSpeed;
+        }
+    }
+    if (input.backward) {
+        if (walls[indexPlayerY * mapWidth + indexPlayerX_SUB_XO] == 0) {
+            playerX -= playerDX * deltaTime * playerSpeed;
+        }
+        if (walls[indexPlayerY_SUB_YO * mapWidth + indexPlayerX] == 0) {
+            playerY -= playerDY * deltaTime * playerSpeed;
+        }
+    }
+    if (input.left) {
+        playerAngle -= playerRotateSpeed * deltaTime;
+        if (playerAngle < 0) {
+            playerAngle += 2 * PI;
+        }
+    }
+    if (input.right) {
+        playerAngle += playerRotateSpeed * deltaTime;
+        if (playerAngle > 2 * PI) {
+            playerAngle -= 2 * PI;
+        }
+    }
+}
+
+void playerActions() {
+    //OFFSET PARA ESTAR TOCANDO EM UM OBJETO
+    int xOffset = 0, yOffset = 0;
+
+    if (playerDX < 0)
+        xOffset = -playerDetectionDistance;
+    else
+        xOffset = playerDetectionDistance;
+
+    if (playerDY < 0)
+        yOffset = -playerDetectionDistance;
+    else
+        yOffset = playerDetectionDistance;
+
+    int indexPlayerX = playerX / tileSize, indexPlayerX_ADD_XO = (playerX + xOffset) / tileSize;
+    int indexPlayerY = playerY / tileSize, indexPlayerY_ADD_YO = (playerY + yOffset) / tileSize;
+
+    //VERIFICAR SE ESTÁ TOCANDO OU IRA TOCAR EM UM PEDACO DO MAPA
+    
+    //ACOES DO JOGADOR
+    if (input.action) {
+
+        //ABRIR PORTA
+        if (walls[indexPlayerY_ADD_YO * mapWidth + indexPlayerX_ADD_XO] == 4) {
+            walls[indexPlayerY_ADD_YO * mapWidth + indexPlayerX_ADD_XO] = 0;
         }
 
-        ra += DR;
-        if (ra < 0) {
-            ra += 2 * PI;
-        }
-        if (ra > 2 * PI) {
-            ra -= 2 * PI;
-        }
     }
 }
 
 void display() {
-    drawMap2D();
-    drawRays2D();
-    drawPlayer();
+    drawBackground();
+    //drawMap2D();
+    //drawPlayer();
+    drawRaycast2D();
     movePlayer();
+    playerActions();
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
 
-    if (key == GLFW_KEY_W) {
-        if (action == GLFW_PRESS) Keys.w = 1;
-        if (action == GLFW_RELEASE) Keys.w = 0;
+    if (key == GLFW_KEY_W || key == GLFW_KEY_UP) {
+        if (action == GLFW_PRESS) input.forward = 1;
+        if (action == GLFW_RELEASE) input.forward = 0;
     }
-    if (key == GLFW_KEY_S) {
-        if (action == GLFW_PRESS) Keys.s = 1;
-        if (action == GLFW_RELEASE) Keys.s = 0;
+    if (key == GLFW_KEY_S || key == GLFW_KEY_DOWN) {
+        if (action == GLFW_PRESS) input.backward = 1;
+        if (action == GLFW_RELEASE) input.backward = 0;
     }
-    if (key == GLFW_KEY_A) {
-        if (action == GLFW_PRESS) Keys.a = 1;
-        if (action == GLFW_RELEASE) Keys.a = 0;
+    if (key == GLFW_KEY_A || key == GLFW_KEY_LEFT) {
+        if (action == GLFW_PRESS) input.left = 1;
+        if (action == GLFW_RELEASE) input.left = 0;
     }
-    if (key == GLFW_KEY_D) {
-        if (action == GLFW_PRESS) Keys.d = 1;
-        if (action == GLFW_RELEASE) Keys.d = 0;
+    if (key == GLFW_KEY_D || key == GLFW_KEY_RIGHT) {
+        if (action == GLFW_PRESS) input.right = 1;
+        if (action == GLFW_RELEASE) input.right = 0;
     }
-}
-
-void init() {
-    glClearColor(0.3, 0.3, 0.3, 0);
-    glOrtho(0.0f, windowWidth, windowHeight, 0.0f, 0.0f, 1.0f);
-    pX = 320;
-    pY = 240;
-    pdX = cos(pa) * 5;
-    pdY = sin(pa) * 5;
-    speed = 20;
-    rotSpeed = 25;
+    if (key == GLFW_KEY_E) {
+        if (action == GLFW_PRESS) input.action = 1;
+        if (action == GLFW_RELEASE) input.action = 0;
+    }
 }
 
 int main(void)
@@ -353,7 +432,7 @@ int main(void)
         return -1;
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(windowWidth, windowHeight, "Hello World", NULL, NULL);
+    window = glfwCreateWindow(screenWidth, screenHeight, "The Raycaster", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -363,10 +442,14 @@ int main(void)
     /* Make the window's context current */
     glfwMakeContextCurrent(window);
 
-    init();
+    initialize();
+
+    glfwGetFramebufferSize(window, &screenWidth, &screenHeight);
+    glViewport(0, 0, screenWidth, screenHeight);
+    glOrtho(0.0f, screenWidth, screenHeight, 0.0f, 0.0f, 1.0f);
 
     /* Loop until the user closes the window */
-    while (!glfwWindowShouldClose(window))    {
+    while (!glfwWindowShouldClose(window)) {
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -374,6 +457,7 @@ int main(void)
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
+        //JOGO
         display();
 
         /* Swap front and back buffers */

@@ -1,1 +1,0 @@
-int window_Texture[];
