@@ -1,4 +1,4 @@
-int mapaTextura[] =               //all 32x32 textures
+int mapaTextura[] =
 {
     //Brick
     0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,

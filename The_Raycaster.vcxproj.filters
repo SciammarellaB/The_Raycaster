@@ -21,6 +21,9 @@
     <ClCompile Include="mapaTexturas.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="mapa.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="mapaTexturas.hpp">

@@ -134,6 +134,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="mapa.cpp" />
     <ClCompile Include="mapaTexturas.cpp" />
   </ItemGroup>
   <ItemGroup>

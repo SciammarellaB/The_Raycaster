@@ -8,11 +8,8 @@
 #include "mapaTexturas.hpp"
 
 #define PI 3.1415926535
-#define P2 PI/2
-#define P3 3*PI/2
-#define DegreeRad 0.0174533
 
-int screenWidth = 640, screenHeight = 480, screenHeightFactor = screenHeight;
+int screenWidth = 960, screenHeight = 640, screenHeightFactor = screenHeight;
 double lastFrame, currentFrame, deltaTime = 0;
 
 //BOTOES POSSIVEIS DO JOGO
@@ -30,13 +27,27 @@ void initialize() {
     playerY = 96;
     playerAngle = 0;
     playerSpeed = 135;
-    playerRotateSpeed = 5;
+    playerRotateSpeed = 250;
     playerDetectionDistance = 30;
     playerColliderRadius = 20;
 }
 
+static float degreeRad(float angle) {
+    return angle * PI / 180.0;
+}
+
+static float fixAngle(float angle) {
+    if (angle > 359) {
+        angle -= 360;
+    }
+    if (angle < 0) {
+        angle += 360;
+    }
+    return angle;
+}
+
 float dist(float ax, float ay, float bx, float by, float ang) {
-    return sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+    return cos(degreeRad(ang)) * (bx-ax) - sin(degreeRad(ang)) * (by - ay);
 }
 
 void drawBackground() {
@@ -98,40 +109,83 @@ void drawPlayer() {
 
 void drawRaycast2D() {
     int mapaX, mapaY, mapaPonto;
-    int ray, rayQtd = 60, depthOfField, depthOfFieldMax = 100;
-    float rayX, rayY, rayAngle, rayXO, rayYO, rayDist;
+    int ray, rayQtd = 120, depthOfField, depthOfFieldMax = 100;
+    float rayX, rayY, rayAngle, rayXO, rayYO, rayDist, verticalX, verticalY;
 
-    rayAngle = playerAngle - DegreeRad * 30;    
-    if (rayAngle < 0) {
-        rayAngle += 2 * PI;
-    }
-    if (rayAngle > 2 * PI) {
-        rayAngle -= 2 * PI;
-    }
+    rayAngle = fixAngle( playerAngle + 20);
 
     for (ray = 0; ray < rayQtd; ray++) {
         double verticalMapaTextura = 0, horizontalMapaTextura = 0;
 
+        float Tan = tan(degreeRad(rayAngle));
+
+        //VERTICAL
+        depthOfField = 0;
+        float verticalDist = 100000000;
+        //OLHANDO PARA ESQUERDA        
+        if (cos(degreeRad(rayAngle)) > 0.001) {
+            rayX = (((int)playerX / tileSize) * tileSize) + tileSize;
+            rayY = (playerX - rayX) * Tan + playerY;
+            rayXO = tileSize;
+            rayYO = -rayXO * Tan;
+        }
+        //OLHANDO PARA DIREITA
+        else if (cos(degreeRad(rayAngle)) < -0.001) {
+            rayX = (((int)playerX / tileSize) * tileSize) - 0.0001;
+            rayY = (playerX - rayX) * Tan + playerY;
+            rayXO = -tileSize;
+            rayYO = -rayXO * Tan;
+        }
+        //OLHANDO PARA CIMA OU BAIXO
+        else {
+            rayX = playerX;
+            rayY = playerY;
+            depthOfField = depthOfFieldMax;
+        }
+
+        while (depthOfField < depthOfFieldMax)
+        {
+            mapaX = (int)(rayX) / tileSize;
+            mapaY = (int)(rayY) / tileSize;
+            mapaPonto = mapaY * mapWidth + mapaX;
+            // ACHOU A PAREDE
+            if (mapaPonto > 0 && mapaPonto < mapWidth * mapHeight && walls[mapaPonto] > 0) {
+                verticalMapaTextura = walls[mapaPonto] - 1;
+                verticalX = rayX;
+                verticalY = rayY;
+                verticalDist = dist(playerX, playerY, rayX, rayY, rayAngle);
+                depthOfField = depthOfFieldMax;
+            }
+            //PROXIMA LINHA
+            else {
+                rayX += rayXO;
+                rayY += rayYO;
+                depthOfField += 1;
+            }
+            verticalX = rayX;
+            verticalY = rayY;
+        }
+
         //HORIZONTAL
         depthOfField = 0;
         float horizontalDist = 100000000, horizontalX = playerX, horizontalY = playerY;
-        float angleTan = -1 / tan(rayAngle);
+        Tan = 1.0 / Tan;
         //OLHANDO PARA CIMA (> 180)
-        if (rayAngle > PI) {
+        if (sin(degreeRad(rayAngle)) > 0.001) {
             rayY = (((int)playerY / tileSize) * tileSize ) - 0.0001;
-            rayX = (playerY - rayY) * angleTan + playerX;
+            rayX = (playerY - rayY) * Tan + playerX;
             rayYO = -tileSize;
-            rayXO = -rayYO * angleTan;
+            rayXO = -rayYO * Tan;
         }
         //OLHANDO PARA BAIXO (< 180)
-        if (rayAngle < PI) {
+        else if (sin(degreeRad(rayAngle)) < -0.001) {
             rayY = (((int)playerY / tileSize) * tileSize) + tileSize;
-            rayX = (playerY - rayY) * angleTan + playerX;
+            rayX = (playerY - rayY) * Tan + playerX;
             rayYO = tileSize;
-            rayXO = -rayYO * angleTan;
+            rayXO = -rayYO * Tan;
         }
         //OLHANDO PARA OS LADOS
-        if (rayAngle == 0 || rayAngle == PI) {
+        else {
             rayX = playerX;
             rayY = playerY;
             depthOfField = depthOfFieldMax;
@@ -147,51 +201,6 @@ void drawRaycast2D() {
                 horizontalX = rayX;
                 horizontalY = rayY;
                 horizontalDist = dist(playerX, playerY, horizontalX, horizontalY, rayAngle);
-                depthOfField = depthOfFieldMax;
-            }
-            //PROXIMA LINHA
-            else {
-                rayX += rayXO;
-                rayY += rayYO;
-                depthOfField += 1;
-            }
-        }
-
-        //VERTICAL
-        depthOfField = 0;
-        float verticalDist = 100000000, verticalX = playerX, verticalY = playerY;
-        float negTan = -tan(rayAngle);
-        //OLHANDO PARA ESQUERDA        
-        if (rayAngle > P2 && rayAngle < P3) {
-            rayX = (((int)playerX / tileSize) * tileSize) - 0.0001;
-            rayY = (playerX - rayX) * negTan + playerY;
-            rayXO = -tileSize;
-            rayYO = -rayXO * negTan;
-        }
-        //OLHANDO PARA DIREITA
-        if (rayAngle < P2 || rayAngle > P3) {
-            rayX = (((int)playerX / tileSize) * tileSize) + tileSize;
-            rayY = (playerX - rayX) * negTan + playerY;
-            rayXO = tileSize;
-            rayYO = -rayXO * negTan;
-        }
-        //OLHANDO PARA CIMA OU BAIXO
-        if (rayAngle == 0 || rayAngle == PI) {
-            rayX = playerX;
-            rayY = playerY;
-            depthOfField = depthOfFieldMax;
-        }
-        while (depthOfField < depthOfFieldMax)
-        {
-            mapaX = (int)(rayX) / tileSize;
-            mapaY = (int)(rayY) / tileSize;
-            mapaPonto = mapaY * mapWidth + mapaX;
-            // ACHOU A PAREDE
-            if (mapaPonto > 0 && mapaPonto < mapWidth * mapHeight && walls[mapaPonto] > 0) {
-                verticalMapaTextura = walls[mapaPonto] - 1;
-                verticalX = rayX;
-                verticalY = rayY;
-                verticalDist = dist(playerX, playerY, verticalX, verticalY, rayAngle);
                 depthOfField = depthOfFieldMax;
             }
             //PROXIMA LINHA
@@ -226,14 +235,8 @@ void drawRaycast2D() {
         //glLineWidth(2); glBegin(GL_LINES); glVertex2f(playerX, playerY); glVertex2f(rayX, rayY); glEnd();
 
         //RAYCAST 3D
-        float castAngle = playerAngle - rayAngle;
-        if (castAngle < 0) {
-            castAngle += 2 * PI;
-        }
-        if (castAngle > 2 * PI) {
-            castAngle -= 2 * PI;
-        }
-        rayDist = rayDist * cos(castAngle);
+        float castAngle = fixAngle(playerAngle - rayAngle);
+        rayDist = rayDist * cos(degreeRad(castAngle));
 
         float lineHeight = (tileSize * screenHeightFactor) / rayDist;
         float texturaY_step = mapaTexturaOffset / (float)lineHeight;
@@ -251,15 +254,9 @@ void drawRaycast2D() {
 
         if (shade == 1) {
             texturaX = (int)(rayX / 2) % mapaTexturaOffset;
-            if (rayAngle > 180) {
-                texturaX = 31 - texturaX;
-            }
         }
         else {
             texturaX = (int)(rayY / 2) % mapaTexturaOffset;
-            if (rayAngle > 90 && rayAngle < 270) {
-                texturaX = 31 - texturaX;
-            }
         }
 
         for (y = 0; y < lineHeight; y++) {
@@ -274,13 +271,7 @@ void drawRaycast2D() {
         }        
 
         //ATUALIZAR ANGULO HORIZONTAL
-        rayAngle += DegreeRad;
-        if (rayAngle < 0) {
-            rayAngle += 2 * PI;
-        }
-        if (rayAngle > 2 * PI) {
-            rayAngle -= 2 * PI;
-        }
+        rayAngle = fixAngle(rayAngle - 0.5);
     }
 }
 
@@ -288,8 +279,8 @@ void movePlayer() {
     //OFFSET PARA NAO ATRAVESSAR AS PAREDES
     int xOffset = 0, yOffset = 0;
 
-    playerDX = cos(playerAngle);
-    playerDY = sin(playerAngle);
+    playerDX = cos(degreeRad(playerAngle));
+    playerDY = -sin(degreeRad(playerAngle));
 
     if (playerDX < 0)
         xOffset = -playerColliderRadius;
@@ -323,16 +314,12 @@ void movePlayer() {
         }
     }
     if (input.left) {
-        playerAngle -= playerRotateSpeed * deltaTime;
-        if (playerAngle < 0) {
-            playerAngle += 2 * PI;
-        }
+        playerAngle += playerRotateSpeed * deltaTime;
+        playerAngle = fixAngle(playerAngle);
     }
     if (input.right) {
-        playerAngle += playerRotateSpeed * deltaTime;
-        if (playerAngle > 2 * PI) {
-            playerAngle -= 2 * PI;
-        }
+        playerAngle -= playerRotateSpeed * deltaTime;
+        playerAngle = fixAngle(playerAngle);
     }
 }
 
