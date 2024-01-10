@@ -10,7 +10,7 @@
 #define PI 3.1415926535
 
 int screenWidth = 960, screenHeight = 640, screenHeightFactor = screenHeight;
-double lastFrame, currentFrame, deltaTime = 0;
+double lastFrame, currentFrame, deltaTime = 0, frames, fpsLastFrame;
 
 //BOTOES POSSIVEIS DO JOGO
 typedef struct buttonKeys {
@@ -46,73 +46,51 @@ static float fixAngle(float angle) {
     return angle;
 }
 
+float lerp(float a, float b, float t) {
+    return a + t * (b - a);
+}
+
 float dist(float ax, float ay, float bx, float by, float ang) {
     return cos(degreeRad(ang)) * (bx-ax) - sin(degreeRad(ang)) * (by - ay);
 }
 
 void drawBackground() {
     //CEU
-    glColor3f(0.34, 0.54, 0.70);
-    glBegin(GL_QUADS);
-    glVertex2i(0, 0);
-    glVertex2i(screenWidth, 0);
-    glVertex2i(screenWidth, screenHeight / 2);
-    glVertex2i(0, screenHeight / 2);
-    glEnd();
+    int ceu;
+    float ceuR = 0.34, ceuG = 0.54, ceuB = 0.70;
+    for (ceu = 0; ceu < screenHeight / 2; ceu++) {
+        glColor3f(ceuR, ceuG, ceuB);
+        glBegin(GL_LINES);
+        glVertex2i(0, ceu);
+        glVertex2i(screenWidth, ceu);
+        glEnd();
+        ceuR -= 0.003f;
+        ceuG -= 0.003f;
+        ceuB -= 0.003f;
+    }
 
     //CHAO
-    glColor3f(0.70, 0.70, 0.70);
-    glBegin(GL_QUADS);
-    glVertex2i(0, screenHeight / 2);
-    glVertex2i(screenWidth, screenHeight / 2);
-    glVertex2i(screenWidth, screenHeight);
-    glVertex2i(0, screenHeight);
-    glEnd();
-}
-
-void drawMap2D() {
-    int x, y, xOffset, yOffset;
-    for (x = 0; x < mapWidth; x++) {
-        for (y = 0; y < mapWidth; y++) {
-            //DESENHAR OS VALORES ACIMA DE 0
-            if (walls[y * mapWidth + x] > 0)
-                glColor3f(1, 1, 1);
-            //QUANDO 0 FICAR PRETO
-            else
-                glColor3f(0, 0, 0);
-
-            //DESENHAR
-            glBegin(GL_QUADS);
-            xOffset = x * tileSize;
-            yOffset = y * tileSize;
-            glVertex2i(xOffset, yOffset);
-            glVertex2i(xOffset, yOffset + tileSize);
-            glVertex2i(xOffset + tileSize, yOffset + tileSize);
-            glVertex2i(xOffset + tileSize, yOffset);
-            glEnd();
-        }
+    int chao;
+    float chaoR = 0.7, chaoG = 0.7, chaoB = 0.7;
+    for (chao = screenHeight / 2; chao > 0; chao--) {
+        glColor3f(chaoR, chaoG, chaoB);
+        glBegin(GL_LINES);
+        glVertex2i(0, screenHeight / 2 + chao);
+        glVertex2i(screenWidth, screenHeight / 2 + chao);
+        glEnd();
+        chaoR -= 0.003f;
+        chaoG -= 0.003f;
+        chaoB -= 0.003f;
     }
-}
-
-void drawPlayer() {
-    glColor3f(1, 1, 0);
-    glPointSize(8);
-    glBegin(GL_POINTS);
-    glVertex2i(playerX, playerY);
-    glEnd();
-
-    glBegin(GL_LINES);
-    glVertex2i(playerX, playerY);
-    glVertex2i(playerX + playerDX * playerDetectionDistance, playerY + playerDY * playerDetectionDistance);
-    glEnd();
 }
 
 void drawRaycast2D() {
     int mapaX, mapaY, mapaPonto;
-    int ray, rayQtd = 120, depthOfField, depthOfFieldMax = 100;
-    float rayX, rayY, rayAngle, rayXO, rayYO, rayDist, verticalX, verticalY;
+    float ray, rayQtd = 120, depthOfField, depthOfFieldMax = 100;
+    float rayX, rayY, rayAngle, rayXO, rayYO, verticalX, verticalY;
+    double rayDist;
 
-    rayAngle = fixAngle( playerAngle + 20);
+    rayAngle = fixAngle(playerAngle + 30);
 
     for (ray = 0; ray < rayQtd; ray++) {
         double verticalMapaTextura = 0, horizontalMapaTextura = 0;
@@ -211,64 +189,42 @@ void drawRaycast2D() {
             }
         }
 
-        //SHADE DE SOMBRA
-        float shade = 1;
-        glColor3f(0, 0.8, 0);
-
         //MOSTRAR QUEM BATEU PRIMEIRO
         if (verticalDist < horizontalDist) {
             horizontalMapaTextura = verticalMapaTextura;
-            shade = 0.5;
             rayX = verticalX;
             rayY = verticalY;
             rayDist = verticalDist;
-            glColor3f(0.7, 0, 0);
+
+            float teste = (rayDist < 255 ? rayDist / 255 : 1) / 3;
+            glColor3f(0.3 - teste, 0.21 - teste, 0.08 - teste);
         }
         if (verticalDist > horizontalDist) {
             verticalMapaTextura = horizontalMapaTextura;
             rayX = horizontalX;
             rayY = horizontalY;
             rayDist = horizontalDist;
-            glColor3f(0.9, 0, 0);
+
+            float teste = (rayDist < 255 ? rayDist / 255 : 1) / 3;
+            glColor3f(0.3 - teste, 0.21 - teste, 0.08 - teste);
         }
 
         //glLineWidth(2); glBegin(GL_LINES); glVertex2f(playerX, playerY); glVertex2f(rayX, rayY); glEnd();
 
         //RAYCAST 3D
         float castAngle = fixAngle(playerAngle - rayAngle);
+        
         rayDist = rayDist * cos(degreeRad(castAngle));
 
-        float lineHeight = (tileSize * screenHeightFactor) / rayDist;
-        float texturaY_step = mapaTexturaOffset / (float)lineHeight;
-        float texturaYOffset = 0;
+        float lineHeight = (tileSize * screenHeight) / rayDist;
         
-        if (lineHeight > screenHeightFactor) {
-            texturaYOffset = (lineHeight - screenHeightFactor) / 2;
+        if (lineHeight > screenHeightFactor) {            
             lineHeight = screenHeightFactor;
         }
-        
-        int y;
+
         float lineOffset = screenHeight / 2 - lineHeight / 2;
-        float texturaY = texturaYOffset * texturaY_step + horizontalMapaTextura * mapaTexturaOffset;
-        float texturaX;
-
-        if (shade == 1) {
-            texturaX = (int)(rayX / 2) % mapaTexturaOffset;
-        }
-        else {
-            texturaX = (int)(rayY / 2) % mapaTexturaOffset;
-        }
-
-        for (y = 0; y < lineHeight; y++) {
-            float c = mapaTextura[(int)(texturaY) * mapaTexturaOffset + (int)texturaX] * shade;
-            glColor3f(c, c, c);
-            //BRICK
-            if (horizontalMapaTextura == 0) {
-                glColor3f(c * 0.75, c * 0.42, c * 0.27);
-            }
-            glPointSize(12); glBegin(GL_POINTS); glVertex2i(ray * 12, y + lineOffset); glEnd();
-            texturaY += texturaY_step;
-        }        
+        
+        glLineWidth(8); glBegin(GL_LINES); glVertex2i(ray * 8, lineOffset); glVertex2i(ray * 8, lineOffset + lineHeight); glEnd();
 
         //ATUALIZAR ANGULO HORIZONTAL
         rayAngle = fixAngle(rayAngle - 0.5);
@@ -386,6 +342,17 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     }
 }
 
+void fps() {
+
+    frames++;
+    if (currentFrame - fpsLastFrame > 1.0) {
+        system("cls");
+        printf("FPS: %f \n", frames);
+        frames = 0;
+        fpsLastFrame = currentFrame;
+    }
+}
+
 int main(void)
 {
     GLFWwindow* window;
@@ -419,6 +386,8 @@ int main(void)
         currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+
+        fps();
 
         //JOGO
         display();
